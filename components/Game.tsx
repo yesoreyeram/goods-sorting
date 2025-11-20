@@ -1,3 +1,4 @@
+'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -13,9 +14,73 @@ import {
   Key
 } from 'lucide-react';
 
+// --- TYPES ---
+
+interface ItemType {
+  id: string;
+  component: React.FC<{ className?: string }>;
+}
+
+interface Item extends ItemType {
+  uid: string;
+  fragileMoves: number | null;
+}
+
+interface Shelf {
+  id: number;
+  capacity: number;
+  items: (Item | null)[];
+}
+
+interface LevelConfig {
+  id: number;
+  shelfSize: number | 'mixed';
+  moveLimit: number | null;
+  timeLimit: number | null;
+  shelves: number;
+  mixed: boolean;
+  numBombs: number;
+  bombTimeLimit: number | null;
+  numIceCreams: number;
+  iceCreamConstraint: boolean;
+  fragileShelfActive: boolean;
+  fragileShelfId: number | null;
+  keyConstraintActive: boolean;
+  lockedShelfId: number | null;
+}
+
+interface GameState {
+  shelves: Shelf[];
+  movesLeft: number | null;
+  timeLeft: number | null;
+  bombsLeft: number;
+  bombTimer: number | null;
+  frozenShelves: number[];
+  lockedShelf: boolean;
+  fragileShelfId: number | null;
+  status: 'playing' | 'won' | 'lost';
+}
+
+interface DragState {
+  item: Item;
+  fromShelfId: number;
+  fromSlotIndex: number;
+  initialX: number;
+  initialY: number;
+  currentX: number;
+  currentY: number;
+}
+
+interface ClearedMessage {
+  x: number;
+  y: number;
+  id: number;
+  itemType: string;
+}
+
 // --- ASSETS (Custom SVG Products) ---
 
-const ProductSoda = ({ className }) => (
+const ProductSoda: React.FC<{ className?: string }> = ({ className }) => (
   <svg viewBox="0 0 100 100" className={className} style={{ shapeRendering: 'geometricPrecision' }}>
     <defs>
       <linearGradient id="sodaGrad" x1="0" y1="0" x2="1" y2="0">
@@ -32,7 +97,7 @@ const ProductSoda = ({ className }) => (
   </svg>
 );
 
-const ProductMilk = ({ className }) => (
+const ProductMilk: React.FC<{ className?: string }> = ({ className }) => (
   <svg viewBox="0 0 100 100" className={className} style={{ shapeRendering: 'geometricPrecision' }}>
     <defs>
       <linearGradient id="milkGrad" x1="0" y1="0" x2="1" y2="1">
@@ -47,7 +112,7 @@ const ProductMilk = ({ className }) => (
   </svg>
 );
 
-const ProductChips = ({ className }) => (
+const ProductChips: React.FC<{ className?: string }> = ({ className }) => (
   <svg viewBox="0 0 100 100" className={className} style={{ shapeRendering: 'geometricPrecision' }}>
     <path d="M25,15 Q20,50 30,85 L70,85 Q80,50 75,15 Z" fill="#facc15" stroke="#ca8a04" strokeWidth="1"/>
     <ellipse cx="50" cy="15" rx="25" ry="5" fill="#fde047" />
@@ -56,7 +121,7 @@ const ProductChips = ({ className }) => (
   </svg>
 );
 
-const ProductJam = ({ className }) => (
+const ProductJam: React.FC<{ className?: string }> = ({ className }) => (
   <svg viewBox="0 0 100 100" className={className} style={{ shapeRendering: 'geometricPrecision' }}>
     <rect x="25" y="30" width="50" height="55" rx="5" fill="#7f1d1d" />
     <rect x="25" y="40" width="50" height="30" fill="#ef4444" opacity="0.8"/>
@@ -66,7 +131,7 @@ const ProductJam = ({ className }) => (
   </svg>
 );
 
-const ProductJuice = ({ className }) => (
+const ProductJuice: React.FC<{ className?: string }> = ({ className }) => (
   <svg viewBox="0 0 100 100" className={className} style={{ shapeRendering: 'geometricPrecision' }}>
     <rect x="30" y="25" width="40" height="60" rx="4" fill="#fb923c" />
     <rect x="35" y="15" width="30" height="10" fill="#fff" />
@@ -75,7 +140,7 @@ const ProductJuice = ({ className }) => (
   </svg>
 );
 
-const ProductWater = ({ className }) => (
+const ProductWater: React.FC<{ className?: string }> = ({ className }) => (
   <svg viewBox="0 0 100 100" className={className} style={{ shapeRendering: 'geometricPrecision' }}>
     <path d="M35,30 L35,85 Q35,90 40,90 L60,90 Q65,90 65,85 L65,30 Q65,25 60,25 L40,25 Q35,25 35,30 Z" fill="#bae6fd" stroke="#0ea5e9" strokeWidth="1"/>
     <rect x="38" y="15" width="24" height="10" fill="#0369a1" rx="1"/>
@@ -84,7 +149,7 @@ const ProductWater = ({ className }) => (
   </svg>
 );
 
-const ProductBomb = ({ className }) => (
+const ProductBomb: React.FC<{ className?: string }> = ({ className }) => (
   <svg viewBox="0 0 100 100" className={className} style={{ shapeRendering: 'geometricPrecision' }}>
     {/* Base Black Circle, gently pulsing */}
     <circle cx="50" cy="50" r="40" fill="#1f2937" className="animate-pulse duration-1000" />
@@ -99,7 +164,7 @@ const ProductBomb = ({ className }) => (
   </svg>
 );
 
-const ProductIceCream = ({ className }) => (
+const ProductIceCream: React.FC<{ className?: string }> = ({ className }) => (
   <svg viewBox="0 0 100 100" className={className} style={{ shapeRendering: 'geometricPrecision' }}>
     <defs>
       <linearGradient id="iceCreamGrad" x1="0" y1="0" x2="0" y2="1">
@@ -119,7 +184,7 @@ const ProductIceCream = ({ className }) => (
   </svg>
 );
 
-const ProductKey = ({ className }) => (
+const ProductKey: React.FC<{ className?: string }> = ({ className }) => (
   <svg viewBox="0 0 100 100" className={className} style={{ shapeRendering: 'geometricPrecision' }}>
     {/* Key Shaft */}
     <rect x="30" y="40" width="50" height="10" fill="#facc15" rx="2" />
@@ -135,7 +200,7 @@ const ProductKey = ({ className }) => (
 
 // --- CONFIGURATION ---
 
-const ITEM_TYPES = [
+const ITEM_TYPES: ItemType[] = [
   { id: 'soda', component: ProductSoda },
   { id: 'milk', component: ProductMilk },
   { id: 'chips', component: ProductChips },
@@ -151,10 +216,10 @@ const MAX_LIVES = 10;
 const MIN_EMPTY_SLOTS = 6;
 
 // Levels Config
-const generateLevels = () => {
-  const levels = [];
+const generateLevels = (): LevelConfig[] => {
+  const levels: LevelConfig[] = [];
   for (let i = 1; i <= 50; i++) {
-    let config = {
+    let config: LevelConfig = {
       id: i,
       shelfSize: 3,
       moveLimit: 20 + i * 2,
@@ -232,19 +297,19 @@ const LEVELS = generateLevels();
 
 // --- UTILITIES ---
 
-const getPointerPos = (e) => {
-  if (e.touches && e.touches.length > 0) {
+const getPointerPos = (e: React.PointerEvent | PointerEvent | TouchEvent): { x: number; y: number } => {
+  if ('touches' in e && e.touches && e.touches.length > 0) {
     return { x: e.touches[0].clientX, y: e.touches[0].clientY };
   }
-  if (e.changedTouches && e.changedTouches.length > 0) {
+  if ('changedTouches' in e && e.changedTouches && e.changedTouches.length > 0) {
     return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
   }
-  return { x: e.clientX, y: e.clientY };
+  return { x: (e as PointerEvent).clientX, y: (e as PointerEvent).clientY };
 };
 
 // --- SOLVABILITY CHECK ---
-const checkInitialSolvability = (shelves, lockedShelfId) => {
-    const itemCounts = {};
+const checkInitialSolvability = (shelves: Shelf[], lockedShelfId: number | null): boolean => {
+    const itemCounts: Record<string, number> = {};
    
     shelves.forEach(shelf => {
         // Since L7 is now standard, lockedShelfId should be null here, but we guard anyway
@@ -266,21 +331,21 @@ const checkInitialSolvability = (shelves, lockedShelfId) => {
     return true;
 };
 
-export default function App() {
+export default function Game() {
   // Global State
-  const [view, setView] = useState('dashboard');
-  const [coins, setCoins] = useState(1000);
-  const [lives, setLives] = useState(MAX_LIVES);
-  const [lastRegenTime, setLastRegenTime] = useState(Date.now());
+  const [view, setView] = useState<'dashboard' | 'game'>('dashboard');
+  const [coins, setCoins] = useState<number>(1000);
+  const [lives, setLives] = useState<number>(MAX_LIVES);
+  const [lastRegenTime, setLastRegenTime] = useState<number>(Date.now());
 
   // Game Session State
-  const [currentLevel, setCurrentLevel] = useState(null);
-  const [gameState, setGameState] = useState(null);
-  const [clearedMessage, setClearedMessage] = useState(null);
-  const [failReason, setFailReason] = useState(null);
+  const [currentLevel, setCurrentLevel] = useState<LevelConfig | null>(null);
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [clearedMessage, setClearedMessage] = useState<ClearedMessage | null>(null);
+  const [failReason, setFailReason] = useState<string | null>(null);
  
   // Drag State
-  const [dragging, setDragging] = useState(null);
+  const [dragging, setDragging] = useState<DragState | null>(null);
 
   // --- PERSISTENCE ---
   useEffect(() => {
@@ -300,7 +365,7 @@ export default function App() {
 
   // --- GAME LOGIC ---
 
-  const handleStartGame = (level) => {
+  const handleStartGame = (level: LevelConfig) => {
     if (lives <= 0) { console.error("No lives left to start game."); return; }
    
     setLives(l => l - 1);
@@ -309,7 +374,7 @@ export default function App() {
    
     // --- 1. Configure Shelves ---
     const numShelves = level.shelves;
-    let shelvesConfig = [];
+    let shelvesConfig: Shelf[] = [];
    
     const lockedShelfId = level.lockedShelfId;
     const fragileShelfId = level.fragileShelfId;
@@ -328,8 +393,8 @@ export default function App() {
     }
 
     // --- 2. Determine Item Pool & Place Locked Items ---
-    let itemPool = [];
-    let lockedItems = [];
+    let itemPool: Item[] = [];
+    let lockedItems: Item[] = [];
    
     const specialItemTypes = ITEM_TYPES.filter(t => t.id === 'bomb' || t.id === 'ice-cream' || t.id === 'key');
     const standardItemTypes = ITEM_TYPES.filter(t => !specialItemTypes.includes(t));
@@ -337,9 +402,11 @@ export default function App() {
     // A) Add Keys and Locked Items (L7) - NO LONGER ACTIVE FOR L7
     if (level.keyConstraintActive) {
         const keyType = ITEM_TYPES.find(t => t.id === 'key');
-        // Add 3 keys to the pool for the player to sort
-        for(let j=0; j < 3; j++) {
-            itemPool.push({ uid: Math.random().toString(36), ...keyType, fragileMoves: null });
+        if (keyType) {
+            // Add 3 keys to the pool for the player to sort
+            for(let j=0; j < 3; j++) {
+                itemPool.push({ uid: Math.random().toString(36), ...keyType, fragileMoves: null });
+            }
         }
        
         // Add 3 standard items to the locked shelf
@@ -370,12 +437,16 @@ export default function App() {
 
     // B) Add Bombs & Ice Creams (L4, L5)
     const bombType = ITEM_TYPES.find(t => t.id === 'bomb');
-    for(let j=0; j < level.numBombs; j++) {
-      itemPool.push({ uid: Math.random().toString(36), ...bombType, fragileMoves: null });
+    if (bombType) {
+        for(let j=0; j < level.numBombs; j++) {
+          itemPool.push({ uid: Math.random().toString(36), ...bombType, fragileMoves: null });
+        }
     }
     const iceCreamType = ITEM_TYPES.find(t => t.id === 'ice-cream');
-    for(let j=0; j < level.numIceCreams; j++) {
-      itemPool.push({ uid: Math.random().toString(36), ...iceCreamType, fragileMoves: null });
+    if (iceCreamType) {
+        for(let j=0; j < level.numIceCreams; j++) {
+          itemPool.push({ uid: Math.random().toString(36), ...iceCreamType, fragileMoves: null });
+        }
     }
    
     // C) Determine Standard Item Count (Refined for Solvability)
@@ -410,14 +481,14 @@ export default function App() {
     // --- 3. Place Items (Randomly, avoiding special shelves if empty) ---
     let attempts = 0;
     let solvable = false;
-    let finalShelvesConfig = [];
+    let finalShelvesConfig: Shelf[] = [];
 
     // Loop until a solvable configuration is generated
     while (!solvable && attempts < 100) {
         finalShelvesConfig = JSON.parse(JSON.stringify(shelvesConfig));
         const currentItemPool = [...itemPool].sort(() => Math.random() - 0.5);
 
-        let allAvailableSlots = [];
+        let allAvailableSlots: { shelfId: number; slotIndex: number }[] = [];
         finalShelvesConfig.forEach(shelf => {
             for(let i=0; i<shelf.capacity; i++) {
                 // Only use empty slots (this correctly filters slots pre-filled by locked items)
@@ -479,28 +550,28 @@ export default function App() {
 
   // --- PLAYABILITY CHECKS ---
 
-  const checkStatus = (shelves, moves, timeLeft, locked) => {
+  const checkStatus = (shelves: Shelf[], moves: number | null, timeLeft: number | null, locked: boolean): 'playing' | 'won' | 'lost' => {
     // 1. Win Check: Check only non-locked, non-frozen shelves
     // Win condition: All items are cleared AND the locked shelf is open (or not active)
     const allEmpty = shelves.every(s =>
-        (s.id === currentLevel.lockedShelfId && !locked) || // Locked shelf is open, or...
-        (s.id !== currentLevel.lockedShelfId && s.items.every(i => i === null)) // ... non-locked shelves are empty
+        (s.id === currentLevel?.lockedShelfId && !locked) || // Locked shelf is open, or...
+        (s.id !== currentLevel?.lockedShelfId && s.items.every(i => i === null)) // ... non-locked shelves are empty
     );
    
     if (allEmpty && !locked) {
-      setGameState(p => ({ ...p, status: 'won' }));
+      setGameState(p => p ? ({ ...p, status: 'won' }) : null);
       return 'won';
     }
 
     // 2. Loss by Limits
     if (moves !== null && moves <= 0) {
       setFailReason('Out of moves!');
-      setGameState(p => ({ ...p, status: 'lost' }));
+      setGameState(p => p ? ({ ...p, status: 'lost' }) : null);
       return 'lost';
     }
     if (timeLeft !== null && timeLeft <= 0) {
       setFailReason('Time up!');
-      setGameState(p => ({ ...p, status: 'lost' }));
+      setGameState(p => p ? ({ ...p, status: 'lost' }) : null);
       return 'lost';
     }
    
@@ -509,11 +580,11 @@ export default function App() {
 
   // --- DRAG HANDLERS ---
 
-  const handleDragStart = (e, item, shelfId, slotIndex) => {
-    if (gameState.status !== 'playing') return;
+  const handleDragStart = (e: React.PointerEvent, item: Item, shelfId: number, slotIndex: number) => {
+    if (gameState?.status !== 'playing') return;
    
     // Prevent dragging out of a locked shelf
-    if (shelfId === currentLevel.lockedShelfId && gameState.lockedShelf) {
+    if (shelfId === currentLevel?.lockedShelfId && gameState.lockedShelf) {
         return;
     }
 
@@ -532,14 +603,14 @@ export default function App() {
     });
   };
 
-  const handleDragMove = useCallback((e) => {
+  const handleDragMove = useCallback((e: PointerEvent | TouchEvent) => {
     if (!dragging) return;
-    if (e.cancelable) e.preventDefault();
+    if ('cancelable' in e && e.cancelable) e.preventDefault();
     const pos = getPointerPos(e);
-    setDragging(prev => ({ ...prev, currentX: pos.x, currentY: pos.y }));
+    setDragging(prev => prev ? ({ ...prev, currentX: pos.x, currentY: pos.y }) : null);
   }, [dragging]);
 
-  const handleDragEnd = useCallback((e) => {
+  const handleDragEnd = useCallback((e: PointerEvent | TouchEvent) => {
     if (!dragging || !gameState || !currentLevel) {
       setDragging(null);
       return;
@@ -556,9 +627,9 @@ export default function App() {
 
     let targetShelfDiv = element?.closest('[data-shelf-id]');
    
-    let targetShelfId = targetShelfDiv ? parseInt(targetShelfDiv.getAttribute('data-shelf-id')) : null;
+    let targetShelfId = targetShelfDiv ? parseInt(targetShelfDiv.getAttribute('data-shelf-id') || '') : null;
 
-    if (targetShelfId !== null) {
+    if (targetShelfId !== null && !isNaN(targetShelfId)) {
       const shelves = [...gameState.shelves];
       const fromShelf = shelves.find(s => s.id === dragging.fromShelfId);
       const toShelf = shelves.find(s => s.id === targetShelfId);
@@ -592,7 +663,7 @@ export default function App() {
          
           // 1. Prepare Item for State Update (Fragile Check)
           let itemToMove = {...dragging.item};
-          let status = gameState.status;
+          let status: 'playing' | 'won' | 'lost' = gameState.status;
          
           // --- L6: Fragile Constraint Logic ---
           if (currentLevel.fragileShelfActive) {
@@ -621,8 +692,8 @@ export default function App() {
 
           const isFull = toShelf.items.every(i => i !== null);
           if (isFull) {
-             const firstId = toShelf.items[0].id;
-             const isMatch = toShelf.items.every(i => i.id === firstId);
+             const firstId = toShelf.items[0]!.id;
+             const isMatch = toShelf.items.every(i => i?.id === firstId);
             
              if (isMatch) {
               
@@ -635,7 +706,7 @@ export default function App() {
 
                // B) L4: Decrement bomb count
                if (firstId === 'bomb') {
-                   setGameState(prev => ({ ...prev, bombsLeft: prev.bombsLeft - toShelf.capacity }));
+                   setGameState(prev => prev ? ({ ...prev, bombsLeft: prev.bombsLeft - toShelf.capacity }) : null);
                }
               
                // C) L7: Unlock the shelf (Only runs if keyConstraintActive is TRUE)
@@ -654,14 +725,14 @@ export default function App() {
           if (moves !== null && status === 'playing') moves--;
          
           // 4. Update state
-          setGameState(prev => ({
+          setGameState(prev => prev ? ({
               ...prev,
               shelves,
               movesLeft: moves,
               frozenShelves: newFrozenShelves,
               lockedShelf: locked,
               status: status
-          }));
+          }) : null);
          
           // 5. Perform all checks (using the new values)
           checkStatus(shelves, moves, gameState.timeLeft, locked);
@@ -674,20 +745,21 @@ export default function App() {
 
   useEffect(() => {
     if (dragging) {
-      window.addEventListener('pointermove', handleDragMove);
-      window.addEventListener('pointerup', handleDragEnd);
-      window.addEventListener('touchmove', handleDragMove, { passive: false });
-      window.addEventListener('touchend', handleDragEnd);
-    } else {
-      window.removeEventListener('pointermove', handleDragMove);
-      window.removeEventListener('pointerup', handleDragEnd);
-      window.removeEventListener('touchend', handleDragEnd);
+      const handleMove = (e: Event) => handleDragMove(e as PointerEvent | TouchEvent);
+      const handleEnd = (e: Event) => handleDragEnd(e as PointerEvent | TouchEvent);
+      
+      window.addEventListener('pointermove', handleMove);
+      window.addEventListener('pointerup', handleEnd);
+      window.addEventListener('touchmove', handleMove, { passive: false });
+      window.addEventListener('touchend', handleEnd);
+      
+      return () => {
+        window.removeEventListener('pointermove', handleMove);
+        window.removeEventListener('pointerup', handleEnd);
+        window.removeEventListener('touchmove', handleMove);
+        window.removeEventListener('touchend', handleEnd);
+      };
     }
-    return () => {
-      window.removeEventListener('pointermove', handleDragMove);
-      window.removeEventListener('pointerup', handleDragEnd);
-      window.removeEventListener('touchend', handleDragEnd);
-    };
   }, [dragging, handleDragMove, handleDragEnd]);
 
   // Timer Effect
@@ -695,15 +767,15 @@ export default function App() {
     if (view === 'game' && gameState?.status === 'playing') {
       const t = setInterval(() => {
         setGameState(p => {
-          if (p.status !== 'playing') return p;
+          if (!p || p.status !== 'playing') return p;
          
           let newTimeLeft = p.timeLeft;
           let newBombTimer = p.bombTimer;
-          let status = 'playing';
+          let status: 'playing' | 'won' | 'lost' = 'playing';
 
           // 1. Decrement Main Timer
           if (p.timeLeft !== null) {
-            newTimeLeft--;
+            newTimeLeft = p.timeLeft - 1;
             if (newTimeLeft <= 0) {
               setFailReason('Time up!');
               status = 'lost';
@@ -711,8 +783,8 @@ export default function App() {
           }
          
           // 2. Decrement Bomb Timer
-          if (currentLevel?.numBombs > 0 && p.bombsLeft > 0 && p.bombTimer !== null) {
-              newBombTimer--;
+          if (currentLevel?.numBombs && currentLevel.numBombs > 0 && p.bombsLeft > 0 && p.bombTimer !== null) {
+              newBombTimer = p.bombTimer - 1;
               if (newBombTimer <= 0) {
                   setFailReason('Bomb timer ran out! BOOM!');
                   status = 'lost';
@@ -893,7 +965,7 @@ export default function App() {
                    grid ${shelf.capacity === 3 ? 'grid-cols-3' : 'grid-cols-2'} gap-1 items-end
                  `}>
                    {shelf.items.map((item, slotIdx) => {
-                     const isBeingDragged = dragging && dragging.item.uid === item?.uid;
+                     const isBeingDragged = dragging && item && dragging.item.uid === item.uid;
                     
                      // Get Fragile Tag (L6)
                      let fragileTag = null;
@@ -1019,5 +1091,3 @@ export default function App() {
     </div>
   );
 }
-
- 
